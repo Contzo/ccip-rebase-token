@@ -19,7 +19,7 @@
  * - Also functions inside a contract should be declared like this:
  * 	1. constructor
  * 	2. receive function (if exists)
- * 	3. fallback function (if exists)
+ * 	3. fallback function (if exists) 
  * 	4. external
  * 	5. public
  * 	6. internal
@@ -29,6 +29,8 @@
 
 pragma solidity ^0.8.20; 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol"; 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 
 /**
@@ -38,7 +40,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @notice The Global interest rate can only decrease from the original value(at deployment) in order to reward early adopters.
  * @notice Each user will have its own interest rate based on the global interest rate at the time of depositing. 
  */
-contract RebaseToken is ERC20{
+contract RebaseToken is ERC20, Ownable, AccessControl{
     /*//////////////////////////////////////////////////////////////
                            STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
@@ -46,6 +48,7 @@ contract RebaseToken is ERC20{
     mapping (address user => uint256 interestRate) private s_userInterestRate; 
     mapping (address user => uint256) private s_lastUpdated; 
     uint256 private constant PRECISION = 1e18 ; 
+    bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -56,7 +59,7 @@ contract RebaseToken is ERC20{
     //////////////////////////////////////////////////////////////*/
     error RebaseToken__InterestRateCanOnlyDecrease(uint256 oldInterestRate, uint256 newInterestRate); 
 
-    constructor() ERC20("Rebase Token", "RBT") {}
+    constructor() ERC20("Rebase Token", "RBT") Ownable(msg.sender) {}
 
 
     /*//////////////////////////////////////////////////////////////
@@ -66,7 +69,7 @@ contract RebaseToken is ERC20{
      * @param _newInterestRate The new interest rate
      * @notice Sets interest rate in the contract 
      */
-    function setInterestRate(uint256 _newInterestRate) external {
+    function setInterestRate(uint256 _newInterestRate) external onlyOwner(){
         if(_newInterestRate > s_interestRate){
             revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, _newInterestRate); 
         }
