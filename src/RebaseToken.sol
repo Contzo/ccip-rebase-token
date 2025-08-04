@@ -31,6 +31,7 @@ pragma solidity ^0.8.20;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Test, console} from "forge-std/Test.sol";
 
 /**
  * @title Rebase Token
@@ -102,7 +103,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _from - the account that will burn the tokens
      * @param _amount - the amount of tokens to burn
      */
-    function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
+    function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
         if (_amount == type(uint256).max) {
             _amount = balanceOf(_from);
         }
@@ -178,7 +179,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         //4. update the last updated timestamp for the user.
         uint256 previousPrincipleBalance = super.balanceOf(_user);
         uint256 currentBalance = balanceOf(_user);
-        if (previousPrincipleBalance >= currentBalance) return;
+        if (previousPrincipleBalance > currentBalance) return;
         uint256 interestToMint = currentBalance - previousPrincipleBalance;
         s_lastUpdated[_user] = block.timestamp;
         _mint(_user, interestToMint);

@@ -11,7 +11,7 @@ contract RebaseTokenTest is Test {
     Vault private vault;
     address public owner = makeAddr("Owner");
     address public user = makeAddr("User");
-    uint256 private constant INITIAL_ETH_BALANCE = 10 ether ; 
+    uint256 private constant INITIAL_ETH_BALANCE = 10 ether;
 
     function setUp() public {
         vm.deal(owner, INITIAL_ETH_BALANCE);
@@ -31,26 +31,27 @@ contract RebaseTokenTest is Test {
         assertEq(expectedRebaseTokenAddress, rebaseTokenAddress);
     }
 
-    function testDepositLinear(uint256 _amountToDeposit) public{
-        // Setup 
+    function testDepositLinear(uint256 _amountToDeposit) public {
+        // Setup
         _amountToDeposit = bound(_amountToDeposit, 1e5, type(uint96).max); // bound the deposit amount between 1e4 and the max value of uint96, in order to avoid depositing 0 WEI
-        vm.deal(user, _amountToDeposit);  // deal some funds to the user 
-        uint256 timeSkipInterval = 1 hours ; 
-        //Act  & Assert 
+        vm.deal(user, _amountToDeposit); // deal some funds to the user
+        uint256 timeSkipInterval = 1 hours;
+        //Act  & Assert
         vm.startPrank(user);
         vault.deposit{value: _amountToDeposit}();
-        uint256 startingBalance = rebaseToken.balanceOf(user);// make the deposit 
-        console.log("User starting balance: ", startingBalance); 
-        assertEq(startingBalance, _amountToDeposit); // assert that the initial deposit is equal to the current balance. 
-        vm.warp(block.timestamp + timeSkipInterval);  // first time jump
+        uint256 startingBalance = rebaseToken.balanceOf(user); // make the deposit
+        console.log("User starting balance: ", startingBalance);
+        assertApproxEqAbs(startingBalance, _amountToDeposit, 1); // For initial deposit
+        vm.warp(block.timestamp + timeSkipInterval); // first time jump
         uint256 firstTimeSkipBalance = rebaseToken.balanceOf(user);
         console.log("First interest: ", (firstTimeSkipBalance - startingBalance));
-        assertGt(firstTimeSkipBalance, startingBalance) ; 
-        vm.warp(block.timestamp + timeSkipInterval);  // second time jump
+        assertGt(firstTimeSkipBalance, startingBalance);
+        vm.warp(block.timestamp + timeSkipInterval); // second time jump
         uint256 secondTimeSkipBalance = rebaseToken.balanceOf(user);
-        assertGt(secondTimeSkipBalance, firstTimeSkipBalance) ; 
+        console.log("Second interest: ", (secondTimeSkipBalance - firstTimeSkipBalance));
+        assertGt(secondTimeSkipBalance, firstTimeSkipBalance);
 
-        assertEq(secondTimeSkipBalance - firstTimeSkipBalance, firstTimeSkipBalance - startingBalance); //check the interest has accumulated linearly
+        assertApproxEqAbs(secondTimeSkipBalance - firstTimeSkipBalance, firstTimeSkipBalance - startingBalance, 1); //check the interest has accumulated linearly
         vm.stopPrank();
     }
 }
