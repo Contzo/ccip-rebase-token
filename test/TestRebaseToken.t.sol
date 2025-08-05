@@ -24,7 +24,7 @@ contract RebaseTokenTest is Test {
         vm.stopPrank();
     }
 
-    function testGetRebaseAddress() external view {
+        function testGetRebaseAddress() external view {
         //Assert
         address expectedRebaseTokenAddress = address(rebaseToken);
         address rebaseTokenAddress = vault.getRebaseTokenAddress();
@@ -34,10 +34,10 @@ contract RebaseTokenTest is Test {
     function testDepositLinear(uint256 _amountToDeposit) public {
         // Setup
         _amountToDeposit = bound(_amountToDeposit, 1e5, type(uint96).max); // bound the deposit amount between 1e4 and the max value of uint96, in order to avoid depositing 0 WEI
-        vm.deal(user, _amountToDeposit); // deal some funds to the user
         uint256 timeSkipInterval = 1 hours;
         //Act  & Assert
         vm.startPrank(user);
+        vm.deal(user, _amountToDeposit); 
         vault.deposit{value: _amountToDeposit}();
         uint256 startingBalance = rebaseToken.balanceOf(user); // make the deposit
         console.log("User starting balance: ", startingBalance);
@@ -54,4 +54,25 @@ contract RebaseTokenTest is Test {
         assertApproxEqAbs(secondTimeSkipBalance - firstTimeSkipBalance, firstTimeSkipBalance - startingBalance, 1); //check the interest has accumulated linearly
         vm.stopPrank();
     }
+
+
+    function testRedeemStraightAway(uint256 _amountToRedeem) public{
+        //setup 
+        _amountToRedeem= bound(_amountToRedeem, 1e5, type(uint96).max); 
+        vm.startPrank(user);
+        vm.deal(user, _amountToRedeem) ; 
+        console.log("User funds: ", user.balance);
+        vault.deposit{value: _amountToRedeem}();
+        uint256 initialUserBalance = rebaseToken.balanceOf(user);
+        assertEq(initialUserBalance, _amountToRedeem);
+        //Act 
+        vault.redeem(type(uint256).max); // redeem all of the funds of hte user 
+        uint256 userBalanceAfterRedeem = rebaseToken.balanceOf(user);
+        // Assert
+        assertEq(userBalanceAfterRedeem, 0); // the balance RBT balance should be 0 after the user redeems all of its funds.
+        assertEq(user.balance, _amountToRedeem); // check that the balance of the ETH balance of the user is back to the same one prior to depositing. 
+        vm.stopPrank();
+    }
 }
+
+
