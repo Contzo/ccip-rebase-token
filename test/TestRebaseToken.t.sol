@@ -171,5 +171,27 @@ contract RebaseTokenTest is Test {
         // ── Act & Assert ──────────────────────────────────────────────
         vault.deposit{value: _amount}();
         assertEq(rebaseToken.principleBalanceOf(user), _amount);
+        uint256 timeSkip = 1 hours;
+        vm.warp(block.timestamp + timeSkip);
+        assertEq(rebaseToken.principleBalanceOf(user), _amount);
+    }
+
+    function testGetRebaseTokenAddress() public view {
+        assertEq(vault.getRebaseTokenAddress(), address(rebaseToken));
+    }
+
+    function testInterestRateCanOnlyDecease(uint256 _newInterestRate) public {
+        // ── Setup ──────────────────────────────────────────────
+        uint256 currentInterestRate = rebaseToken.getGlobalInterestRate();
+        _newInterestRate = bound(_newInterestRate, currentInterestRate + 1, type(uint96).max); // make sure that the new interest rate is higher then the current one.
+
+        // ── Act & Assert ──────────────────────────────────────────────
+        vm.prank(owner);
+        bytes memory expectedError = abi.encodeWithSelector(
+            RebaseToken.RebaseToken__InterestRateCanOnlyDecrease.selector, currentInterestRate, _newInterestRate
+        );
+        vm.expectRevert(expectedError);
+        rebaseToken.setInterestRate(_newInterestRate);
+        assertEq(currentInterestRate, rebaseToken.getGlobalInterestRate());
     }
 }
