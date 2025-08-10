@@ -78,7 +78,9 @@ contract Vault {
     function redeem(uint256 _amount) external {
         // 1. burn the tokens from the user
         // 2. send the user the corresponding ETH.
-
+        if (_amount == type(uint256).max) {
+            _amount = i_rebaseToken.balanceOf(msg.sender);
+        }
         i_rebaseToken.burn(msg.sender, _amount);
         (bool success,) = payable(msg.sender).call{value: _amount}("");
         if (!success) {
