@@ -67,7 +67,8 @@ contract Vault {
      * @notice a function the will allow a user to deposit some amount of EHT and receive the same amount of rebase tokens.
      */
     function deposit() external payable {
-        i_rebaseToken.mint(msg.sender, msg.value);
+        uint256 interestRate = i_rebaseToken.getGlobalInterestRate();
+        i_rebaseToken.mint(msg.sender, msg.value, interestRate);
         emit Deposited(msg.sender, msg.value);
     }
 
