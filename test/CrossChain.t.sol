@@ -12,6 +12,8 @@ import {RegistryModuleOwnerCustom} from "@ccip/contracts/src/v0.8/ccip/tokenAdmi
 import {TokenAdminRegistry} from "@ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol"; 
 import {TokenPool} from "@ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol";
 import {RateLimiter} from "@ccip/contracts/src/v0.8/ccip/libraries/RateLimiter.sol";
+import {Client} from "@ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "@ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 
 contract CrossChain is Test {
     RebaseToken public sepoliaRebaseToken;
@@ -127,5 +129,47 @@ contract CrossChain is Test {
             })
         });
         TokenPool(localPool).applyChainUpdates(chainsToAdd);
+    }
+
+    function bridgeTokens(uint256 _amountToBridge, uint256 _localFork, uint256 _remoteFork, Register.NetworkDetails memory _localNetworkDetails, Register.NetworkDetails memory _remoteNetworkDetails, RebaseToken _localToken, RebaseToken _remoteToken) public{
+        vm.selectFork(_localFork); // initiate the transfer fro the local chain
+        // Construct the EVM2AnyMessage struct
+        Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
+        tokenAmounts[0] = Client.EVMTokenAmount({token: address(_localToken), amount: _amountToBridge});
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+           receiver: abi.encode(user),  
+           data: "", 
+           tokenAmounts:tokenAmounts,
+           feeToken: _localNetworkDetails.linkAddress,  // fees paid in link
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0})) // no gas limit
+        });
+        // Get the fees. 
+        uint256 fee = IRouterClient(_localNetworkDetails.routerAddress).getFee(_remoteNetworkDetails.chainSelector, message);
+        // Approve the link amount.
+        ccipLocalSimulatorFork.requestLinkFromFaucet(user, fee);
+        vm.prank(user); 
+        IERC20(_localNetworkDetails.linkAddress).approve(_localNetworkDetails.routerAddress, fee); 
+        // Approve the local token
+        vm.prank(user); 
+        _localToken.approve(_localNetworkDetails.routerAddress, _amountToBridge); 
+
+        // Send the CCIP message across chains and assert token balance
+        uint256 userLocalBalanceBefore = _localToken.balanceOf(user); 
+        uint256 localUserInterestRate = _localToken.getUserInterestRate(user); 
+        vm.prank(user); 
+        IRouterClient(_localNetworkDetails.routerAddress).ccipSend(_remoteNetworkDetails.chainSelector, message);
+        uint256 userLocalBalanceAfter = _localToken.balanceOf(user); 
+        assertEq(userLocalBalanceAfter, userLocalBalanceBefore - _amountToBridge);
+
+        // Switch forks
+        vm.selectFork(_remoteFork); 
+        vm.warp(block.timestamp+ 20 minutes); 
+        uint256 userRemoteBalanceBefore = _remoteToken.balanceOf(user); 
+        // Propagate the chain across 
+        ccipLocalSimulatorFork.switchChainAndRouteMessage(_remoteFork); // this will change the fork and simulate the CCIP message sending
+        uint256 userRemoteBalanceAfter = _remoteToken.balanceOf(user); 
+        uint256 remoteUserInterestRate = _remoteToken.getUserInterestRate(user); 
+        assertEq(userRemoteBalanceAfter, userRemoteBalanceBefore + _amountToBridge); 
+        assertEq(localUserInterestRate, remoteUserInterestRate); 
     }
 }
