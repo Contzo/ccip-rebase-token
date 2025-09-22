@@ -8,12 +8,12 @@ import {IRebaseToken} from "../src/interfaces/IRebaseToken.sol";
 import {Vault} from "../src/Vault.sol";
 import {CCIPLocalSimulatorFork, Register} from "@chainlink/local/src/ccip/CCIPLocalSimulatorFork.sol";
 import {IERC20} from "@ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
-import {RegistryModuleOwnerCustom} from "@ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/RegistryModuleOwnerCustom.sol"
+import {RegistryModuleOwnerCustom} from "@ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/RegistryModuleOwnerCustom.sol";
 import {TokenAdminRegistry} from "@ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol"; 
 
 contract CrossChain is Test {
     RebaseToken public sepoliaRebaseToken;
-    RebaseToken public arbitrumSepoliaRebaseToken;
+    RebaseToken public arbitrumRebaseToken;
     Vault public sepoliaVault;
     Vault public arbVault;
     RebaseTokenPool sepoliaPool;
@@ -50,13 +50,13 @@ contract CrossChain is Test {
         sepoliaPool =
             new RebaseTokenPool(IERC20(address(sepoliaRebaseToken)), new address[](0), sepoliaRmnProxy, sepoliaRouter);
 
-        // Grant mint and burn role to the Pool contract and vaolt (just on Sepolia)
-        sepoliaRebaseToken.grantMintAndBurnRole(address(vault));
+        // Grant mint and burn role to the Pool contract and vault(just on Sepolia)
+        sepoliaRebaseToken.grantMintAndBurnRole(address(sepoliaVault));
         sepoliaRebaseToken.grantMintAndBurnRole(address(sepoliaPool));
         
         //Accept the admin role 
         address sepoliaRegistryModuleOwnerCustomAddress = sepoliaNetworkDetails.registryModuleOwnerCustomAddress; 
-        RegistryModuleOwnerCustom sepoliaRegistryModuleOwnerCustom = RegistryModuleOwnerCustom(sepoliaRegistryModuleOwnerCustomAddress)
+        RegistryModuleOwnerCustom sepoliaRegistryModuleOwnerCustom = RegistryModuleOwnerCustom(sepoliaRegistryModuleOwnerCustomAddress);
         sepoliaRegistryModuleOwnerCustom.registerAdminViaOwner(address(sepoliaRebaseToken)); 
         //Claim the admin role 
         address sepoliaTokenAdminRegistryAddress = sepoliaNetworkDetails.tokenAdminRegistryAddress ; 
@@ -74,9 +74,9 @@ contract CrossChain is Test {
         arbitrumNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Sepolia chain
         vm.startPrank(owner);
 
-        arbitrumSepoliaRebaseToken = new RebaseToken();
+        arbitrumRebaseToken = new RebaseToken();
         address arbitrumRmnProxy = arbitrumNetworkDetails.rmnProxyAddress;
-        address arbiturmRouter = arbitrumNetworkDetails.routerAddress;
+        address arbitrumRouter = arbitrumNetworkDetails.routerAddress;
 
         // Pool contract deploy
         arbitrumPool =
@@ -86,7 +86,7 @@ contract CrossChain is Test {
 
         // Accept the admin role 
         address arbitrumRegistryModuleOwnerCustomAddress = arbitrumNetworkDetails.registryModuleOwnerCustomAddress; 
-        RegistryModuleOwnerCustom arbitrumRegistryModuleOwnerCustom = RegistryModuleOwnerCustom(arbitrumRegistryModuleOwnerCustomAddress)
+        RegistryModuleOwnerCustom arbitrumRegistryModuleOwnerCustom = RegistryModuleOwnerCustom(arbitrumRegistryModuleOwnerCustomAddress); 
         arbitrumRegistryModuleOwnerCustom.registerAdminViaOwner(address(arbitrumRebaseToken)); 
         //Claim the admin role 
         address arbitrumTokenAdminRegistryAddress = arbitrumNetworkDetails.tokenAdminRegistryAddress ; 
