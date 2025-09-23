@@ -46,7 +46,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     //////////////////////////////////////////////////////////////*/
     mapping(address user => uint256 interestRate) private s_userInterestRate;
     mapping(address user => uint256) private s_lastUpdated;
-    uint256 private constant PRECISION = 1e27;
+    uint256 private constant PRECISION = 1e18;
     uint256 private s_interestRate = (5 * PRECISION) / 1e8; // 0.000005% per second global interest rate.
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
 

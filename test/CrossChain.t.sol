@@ -25,7 +25,8 @@ contract CrossChain is Test {
     // accounts
     address public owner = makeAddr("Owner");
     address public user = makeAddr("User");
-    uint256 private constant INITIAL_ETH_BALANCE = 10 ether;
+    uint256 public constant SEND_VALUE = 1e5;
+    uint256 public constant INITIAL_ETH_BALANCE = 10 ether;
 
     uint256 sepoliaFork;
     uint256 arbSepoliaFork;
@@ -43,6 +44,7 @@ contract CrossChain is Test {
 
         //1. Deploy and configure on Sepolia
         sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Sepolia chain
+        vm.deal(owner, INITIAL_ETH_BALANCE); 
         vm.startPrank(owner);
 
         sepoliaRebaseToken = new RebaseToken();
@@ -69,7 +71,6 @@ contract CrossChain is Test {
 
         // Configure the pools for the tokens
         sepoliaTokenAdminRegistry.setPool(address(sepoliaRebaseToken), address(sepoliaPool)); 
-        configureTokenPool(sepoliaFork, address(sepoliaPool), arbitrumNetworkDetails.chainSelector, address(arbitrumPool), address(arbitrumRebaseToken));
 
 
         vm.stopPrank();
@@ -100,11 +101,11 @@ contract CrossChain is Test {
 
         // Configure the pools for the tokens
         arbitrumTokenAdminRegistry.setPool(address(arbitrumRebaseToken), address(arbitrumPool)); 
-        configureTokenPool(arbSepoliaFork, address(arbitrumPool), sepoliaNetworkDetails.chainSelector, address(sepoliaPool), address(sepoliaRebaseToken));
-
-
 
         vm.stopPrank();
+        // We don't need prank to configure call the configure token pool, and also we don't need to switch forks(we do this inside the function)
+        configureTokenPool(sepoliaFork, address(sepoliaPool), arbitrumNetworkDetails.chainSelector, address(arbitrumPool), address(arbitrumRebaseToken));
+        configureTokenPool(arbSepoliaFork, address(arbitrumPool), sepoliaNetworkDetails.chainSelector, address(sepoliaPool), address(sepoliaRebaseToken));
     }
 
     function configureTokenPool(uint256 fork, address localPool, uint64 remoteChianSelector, address remotePool, address remoteTokenAddress) public{
@@ -141,7 +142,7 @@ contract CrossChain is Test {
            data: "", 
            tokenAmounts:tokenAmounts,
            feeToken: _localNetworkDetails.linkAddress,  // fees paid in link
-            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0})) // no gas limit
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 500_000})) // no gas limit
         });
         // Get the fees. 
         uint256 fee = IRouterClient(_localNetworkDetails.routerAddress).getFee(_remoteNetworkDetails.chainSelector, message);
@@ -153,23 +154,44 @@ contract CrossChain is Test {
         vm.prank(user); 
         _localToken.approve(_localNetworkDetails.routerAddress, _amountToBridge); 
 
-        // Send the CCIP message across chains and assert token balance
-        uint256 userLocalBalanceBefore = _localToken.balanceOf(user); 
+        // Send the CCIP message across chains and assert token balance (use principle balances to avoid interest skew)
+        uint256 userLocalBalanceBefore = _localToken.principleBalanceOf(user); 
         uint256 localUserInterestRate = _localToken.getUserInterestRate(user); 
         vm.prank(user); 
         IRouterClient(_localNetworkDetails.routerAddress).ccipSend(_remoteNetworkDetails.chainSelector, message);
-        uint256 userLocalBalanceAfter = _localToken.balanceOf(user); 
+        uint256 userLocalBalanceAfter = _localToken.principleBalanceOf(user); 
         assertEq(userLocalBalanceAfter, userLocalBalanceBefore - _amountToBridge);
 
-        // Switch forks
-        vm.selectFork(_remoteFork); 
-        vm.warp(block.timestamp+ 20 minutes); 
-        uint256 userRemoteBalanceBefore = _remoteToken.balanceOf(user); 
-        // Propagate the chain across 
-        ccipLocalSimulatorFork.switchChainAndRouteMessage(_remoteFork); // this will change the fork and simulate the CCIP message sending
-        uint256 userRemoteBalanceAfter = _remoteToken.balanceOf(user); 
+        // Read remote balance before routing
+        vm.selectFork(_remoteFork);
+        uint256 userRemoteBalanceBefore = _remoteToken.principleBalanceOf(user);
+        // Call router while on the source chain
+        vm.selectFork(_localFork);
+        ccipLocalSimulatorFork.switchChainAndRouteMessage(_remoteFork); // simulate CCIP message delivery
+        // Assert on the destination chain after routing
+        vm.selectFork(_remoteFork);
+        vm.warp(block.timestamp + 20 minutes);
+        uint256 userRemoteBalanceAfter = _remoteToken.principleBalanceOf(user);
         uint256 remoteUserInterestRate = _remoteToken.getUserInterestRate(user); 
         assertEq(userRemoteBalanceAfter, userRemoteBalanceBefore + _amountToBridge); 
         assertEq(localUserInterestRate, remoteUserInterestRate); 
     }
+
+    function testBridgeAllTokens()public{
+        vm.selectFork(sepoliaFork); 
+        vm.deal(user, SEND_VALUE); 
+        vm.prank(user); 
+        Vault(payable(address(sepoliaVault ))).deposit{value: SEND_VALUE}(); 
+        assertEq(sepoliaRebaseToken.balanceOf(user), SEND_VALUE); // assert the minting was correct 
+        bridgeTokens(SEND_VALUE, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbitrumNetworkDetails, sepoliaRebaseToken, arbitrumRebaseToken); 
+        // Bridge tokens back
+        vm.selectFork(arbSepoliaFork);
+        vm.warp(block.timestamp + 20 minutes);
+        // Settle accrued interest into principal to avoid dust
+        vm.prank(user);
+        arbitrumRebaseToken.transfer(user, 0);
+        uint256 allOnArb = arbitrumRebaseToken.balanceOf(user);
+        bridgeTokens(allOnArb, arbSepoliaFork, sepoliaFork, arbitrumNetworkDetails, sepoliaNetworkDetails, arbitrumRebaseToken, sepoliaRebaseToken);
+    }
+
 }
