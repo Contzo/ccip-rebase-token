@@ -15,6 +15,8 @@ import {RateLimiter} from "@ccip/contracts/src/v0.8/ccip/libraries/RateLimiter.s
 import {Client} from "@ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
 import {IRouterClient} from "@ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 
+import {TokenAndPoolDeployer, VaultDeployer} from "../script/Deployer.s.sol"; 
+
 contract CrossChain is Test {
     RebaseToken public sepoliaRebaseToken;
     RebaseToken public arbitrumRebaseToken;
@@ -36,6 +38,8 @@ contract CrossChain is Test {
     
 
     function setUp() public {
+        TokenAndPoolDeployer tokenAndPoolDeployer = new TokenAndPoolDeployer() ; 
+        VaultDeployer vaultDeployer = new VaultDeployer() ; 
         sepoliaFork = vm.createSelectFork("sepolia-eth"); // both create and select the Sepolia fork
         arbSepoliaFork = vm.createFork("arb-sepolia"); // create the Arbitrum Sepolia fork ;
 
@@ -46,33 +50,8 @@ contract CrossChain is Test {
         sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Sepolia chain
         vm.deal(owner, INITIAL_ETH_BALANCE); 
         vm.startPrank(owner);
-
-        sepoliaRebaseToken = new RebaseToken();
-        sepoliaVault = new Vault(IRebaseToken(address(sepoliaRebaseToken))); // only deploy the vault on Sepolia
-
-        // Pool contract deploy
-        address sepoliaRmnProxy = sepoliaNetworkDetails.rmnProxyAddress;
-        address sepoliaRouter = sepoliaNetworkDetails.routerAddress;
-        sepoliaPool =
-            new RebaseTokenPool(IERC20(address(sepoliaRebaseToken)), new address[](0), sepoliaRmnProxy, sepoliaRouter);
-
-        // Grant mint and burn role to the Pool contract and vault(just on Sepolia)
-        sepoliaRebaseToken.grantMintAndBurnRole(address(sepoliaVault));
-        sepoliaRebaseToken.grantMintAndBurnRole(address(sepoliaPool));
-        
-        //Accept the admin role 
-        address sepoliaRegistryModuleOwnerCustomAddress = sepoliaNetworkDetails.registryModuleOwnerCustomAddress; 
-        RegistryModuleOwnerCustom sepoliaRegistryModuleOwnerCustom = RegistryModuleOwnerCustom(sepoliaRegistryModuleOwnerCustomAddress);
-        sepoliaRegistryModuleOwnerCustom.registerAdminViaOwner(address(sepoliaRebaseToken)); 
-        //Claim the admin role 
-        address sepoliaTokenAdminRegistryAddress = sepoliaNetworkDetails.tokenAdminRegistryAddress ; 
-        TokenAdminRegistry sepoliaTokenAdminRegistry = TokenAdminRegistry(sepoliaTokenAdminRegistryAddress); 
-        sepoliaTokenAdminRegistry.acceptAdminRole(address(sepoliaRebaseToken)) ; 
-
-        // Configure the pools for the tokens
-        sepoliaTokenAdminRegistry.setPool(address(sepoliaRebaseToken), address(sepoliaPool)); 
-
-
+            (sepoliaRebaseToken, sepoliaPool) = tokenAndPoolDeployer.deployTokenAndPool(sepoliaNetworkDetails); 
+            sepoliaVault = vaultDeployer.deployVault(address(sepoliaRebaseToken));
         vm.stopPrank();
 
         //2. Deploy and configure on Arbitrum Sepolia

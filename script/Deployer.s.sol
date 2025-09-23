@@ -13,7 +13,7 @@ import {RegistryModuleOwnerCustom} from "@ccip/contracts/src/v0.8/ccip/tokenAdmi
 import {TokenAdminRegistry} from "@ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol"; 
 
 
-contract TokenAndPool is Script{
+contract TokenAndPoolDeployer is Script{
     function run () public returns(RebaseToken token, RebaseTokenPool pool){
         CCIPLocalSimulatorFork ccipLocalSimulatorFork = new CCIPLocalSimulatorFork() ; 
         Register.NetworkDetails memory  networkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
@@ -22,7 +22,7 @@ contract TokenAndPool is Script{
         vm.stopBroadcast();
     }
 
-    function deployTokenAndPool(Register.NetworkDetails memory _networkDetails) internal returns(RebaseToken token, RebaseTokenPool pool){
+    function deployTokenAndPool(Register.NetworkDetails memory _networkDetails) public returns(RebaseToken token, RebaseTokenPool pool){
         // get the network details  using local simulator 
         address rnmProxy = _networkDetails.rmnProxyAddress; 
         address router = _networkDetails.routerAddress; 
@@ -57,7 +57,7 @@ contract VaultDeployer is Script{
         vm.stopBroadcast();
     }
 
-    function deployVault(address _rebaseToken) internal returns(Vault vault){
+    function deployVault(address _rebaseToken) public returns(Vault vault){
         // deploy the vault 
         vault = new Vault((IRebaseToken(_rebaseToken))); 
 
