@@ -11,8 +11,8 @@ import {IERC20} from "@ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8
 import {TokenPool} from "@ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol";
 import {Client} from "@ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
 import {IRouterClient} from "@ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {TokenAndPoolDeployer, VaultDeployer} from "../script/Deployer.s.sol";
-import {ConfigurePoolScript} from "../script/ConfigurePool.s.sol";
+import {DeployerLibrary} from "../src/libraries/DeployerLibrary.sol";
+import {ConfigurePoolLibrary} from "../src/libraries/ConfigurePoolLibrary.sol";
 
 contract CrossChain is Test {
     RebaseToken public sepoliaRebaseToken;
@@ -34,8 +34,6 @@ contract CrossChain is Test {
     Register.NetworkDetails arbitrumNetworkDetails;
 
     function setUp() public {
-        TokenAndPoolDeployer tokenAndPoolDeployer = new TokenAndPoolDeployer();
-        VaultDeployer vaultDeployer = new VaultDeployer();
         sepoliaFork = vm.createSelectFork("sepolia-eth"); // both create and select the Sepolia fork
         arbSepoliaFork = vm.createFork("arb-sepolia"); // create the Arbitrum Sepolia fork ;
 
@@ -46,15 +44,16 @@ contract CrossChain is Test {
         sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Sepolia chain
         vm.deal(owner, INITIAL_ETH_BALANCE);
         vm.startPrank(owner);
-        (sepoliaRebaseToken, sepoliaPool) = tokenAndPoolDeployer.deployTokenAndPool(sepoliaNetworkDetails);
-        sepoliaVault = vaultDeployer.deployVault(address(sepoliaRebaseToken));
+        console.log("Owner address: ", owner);
+        (sepoliaRebaseToken, sepoliaPool) = DeployerLibrary.deployTokenAndPool(sepoliaNetworkDetails);
+        sepoliaVault = DeployerLibrary.deployVault(address(sepoliaRebaseToken));
         vm.stopPrank();
 
         //2. Deploy and configure on Arbitrum Sepolia
         vm.selectFork(arbSepoliaFork); // change the chain to the Arbitrum Sepolia fork
-        arbitrumNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Arbitrum chainb
+        arbitrumNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // get the network details for the Arbitrum chain
         vm.startPrank(owner);
-        (arbitrumRebaseToken, arbitrumPool) = tokenAndPoolDeployer.deployTokenAndPool(arbitrumNetworkDetails);
+        (arbitrumRebaseToken, arbitrumPool) = DeployerLibrary.deployTokenAndPool(arbitrumNetworkDetails);
         vm.stopPrank();
         // We don't need prank to configure call the configure token pool, and also we don't need to switch forks(we do this inside the function)
         configureTokenPool(
@@ -80,10 +79,9 @@ contract CrossChain is Test {
         address remotePool,
         address remoteTokenAddress
     ) public {
-        ConfigurePoolScript configurePoolScript = new ConfigurePoolScript();
         vm.selectFork(fork);
         vm.prank(owner);
-        configurePoolScript.configurePool(
+        ConfigurePoolLibrary.configurePool(
             localPool, remoteChainSelector, remotePool, remoteTokenAddress, false, 0, 0, false, 0, 0
         );
     }
